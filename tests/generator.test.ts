@@ -284,4 +284,40 @@ describe('generateProject', () => {
     expect(ignore).toContain('.env');
     expect(ignore).toContain('tests');
   });
+
+  it('should include mysql service when database is mysql', () => {
+    const files = generateProject({ database: 'mysql' });
+    const devCompose = files['docker-compose.yml']!;
+    expect(devCompose).toContain('db:');
+    expect(devCompose).toContain('mysql:8.0');
+    expect(devCompose).toContain('MYSQL_DATABASE');
+    expect(devCompose).toContain('mysqldata');
+  });
+
+  it('should include mysql volumes for mysql database', () => {
+    const files = generateProject({ database: 'mysql' });
+    const devCompose = files['docker-compose.yml']!;
+    expect(devCompose).toContain('mysqldata:');
+  });
+
+  it('should not create db service for sqlite', () => {
+    const files = generateProject({ database: 'sqlite' });
+    const devCompose = files['docker-compose.yml']!;
+    expect(devCompose).not.toContain('postgres');
+    expect(devCompose).not.toContain('mysql');
+    expect(devCompose).not.toContain('db:');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Workdir customization
+// ---------------------------------------------------------------------------
+
+describe('generateDockerfile workdir', () => {
+  it('should use custom workdir in chown', () => {
+    const output = generateDockerfile({ workdir: '/opt/myapp' });
+    expect(output).toContain('WORKDIR /opt/myapp');
+    expect(output).toContain('RUN chown dcyfr:nodejs /opt/myapp');
+    expect(output).not.toContain('chown dcyfr:nodejs /app');
+  });
 });

@@ -66,7 +66,7 @@ export function generateDockerfile(config: Partial<DockerBuildConfig> = {}): str
   lines.push(`WORKDIR ${parsed.workdir}`);
 
   if (parsed.nonRoot) {
-    lines.push('RUN chown dcyfr:nodejs /app');
+    lines.push(`RUN chown dcyfr:nodejs ${parsed.workdir}`);
   }
 
   if (parsed.multiStage) {
@@ -337,6 +337,42 @@ function buildServices(opts: GenerateOptions): ServiceSets {
     });
   }
 
+  if (opts.database === 'mysql') {
+    dependsOn.push('db');
+
+    devServices.push({
+      name: 'db',
+      image: 'mysql:8.0',
+      ports: ['3306:3306'],
+      environment: {
+        MYSQL_ROOT_PASSWORD: 'root',
+        MYSQL_DATABASE: 'app',
+        MYSQL_USER: 'mysql',
+        MYSQL_PASSWORD: 'mysql',
+      },
+      volumes: ['mysqldata:/var/lib/mysql'],
+      dependsOn: [],
+      healthCheck: '["CMD", "mysqladmin", "ping", "-h", "localhost"]',
+      restart: 'unless-stopped',
+    });
+
+    prodServices.push({
+      name: 'db',
+      image: 'mysql:8.0',
+      ports: [],
+      environment: {
+        MYSQL_ROOT_PASSWORD: '${DB_ROOT_PASSWORD}',
+        MYSQL_DATABASE: '${DB_NAME:-app}',
+        MYSQL_USER: '${DB_USER:-dcyfr}',
+        MYSQL_PASSWORD: '${DB_PASSWORD}',
+      },
+      volumes: ['mysqldata-prod:/var/lib/mysql'],
+      dependsOn: [],
+      healthCheck: '["CMD", "mysqladmin", "ping", "-h", "localhost"]',
+      restart: 'always',
+    });
+  }
+
   if (opts.redis) {
     dependsOn.push('redis');
 
@@ -394,6 +430,11 @@ function buildVolumes(opts: GenerateOptions): VolumeSets {
   if (opts.database === 'postgres') {
     dev.push('pgdata');
     prod.push('pgdata-prod');
+  }
+
+  if (opts.database === 'mysql') {
+    dev.push('mysqldata');
+    prod.push('mysqldata-prod');
   }
 
   if (opts.redis) {
