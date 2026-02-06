@@ -1,3 +1,4 @@
+<!-- TLP:CLEAR -->
 # Troubleshooting
 
 Common issues and solutions when using @dcyfr/ai-docker.
