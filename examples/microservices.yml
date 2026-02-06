@@ -1,0 +1,167 @@
+# ==============================================================================
+# Microservices Example
+# ==============================================================================
+# Multi-service architecture with API gateway, auth service, worker,
+# shared database, and message queue.
+#
+# Usage:
+#   docker compose -f examples/microservices.yml up -d
+#   docker compose -f examples/microservices.yml down
+# ==============================================================================
+
+services:
+  # API Gateway
+  gateway:
+    image: nginx:1.27-alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./gateway-nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      api:
+        condition: service_healthy
+      auth:
+        condition: service_healthy
+    restart: always
+    networks:
+      - services-network
+
+  # Main API Service
+  api:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    expose:
+      - "3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - SERVICE_NAME=api
+      - DATABASE_URL=postgresql://app:secret@db:5432/api_db
+      - REDIS_URL=redis://redis:6379
+      - AUTH_SERVICE_URL=http://auth:3001
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+      replicas: 2
+    restart: always
+    networks:
+      - services-network
+
+  # Auth Service
+  auth:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    expose:
+      - "3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - SERVICE_NAME=auth
+      - DATABASE_URL=postgresql://app:secret@db:5432/auth_db
+      - JWT_SECRET=${JWT_SECRET:-change-me-in-production}
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+    restart: always
+    networks:
+      - services-network
+
+  # Background Worker
+  worker:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    environment:
+      - NODE_ENV=production
+      - SERVICE_NAME=worker
+      - DATABASE_URL=postgresql://app:secret@db:5432/api_db
+      - REDIS_URL=redis://redis:6379
+    command: ["node", "dist/worker.js"]
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+      replicas: 2
+    restart: always
+    networks:
+      - services-network
+
+  # Shared PostgreSQL
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: secret
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./init-databases.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+    restart: always
+    networks:
+      - services-network
+
+  # Redis (cache + message queue)
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+    restart: always
+    networks:
+      - services-network
+
+volumes:
+  pgdata:
+  redisdata:
+
+networks:
+  services-network:
+    driver: bridge

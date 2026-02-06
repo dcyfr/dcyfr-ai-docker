@@ -1,0 +1,56 @@
+{
+  "name": "@dcyfr/ai-docker",
+  "version": "0.1.0",
+  "description": "Production-ready Docker containerization templates for DCYFR AI applications",
+  "type": "module",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "build": "docker compose -f docker-compose.yml build",
+    "build:prod": "docker compose -f docker-compose.prod.yml build",
+    "up": "docker compose -f docker-compose.yml up",
+    "up:detach": "docker compose -f docker-compose.yml up -d",
+    "up:prod": "docker compose -f docker-compose.prod.yml up -d",
+    "down": "docker compose -f docker-compose.yml down",
+    "down:prod": "docker compose -f docker-compose.prod.yml down",
+    "logs": "docker compose -f docker-compose.yml logs -f",
+    "logs:prod": "docker compose -f docker-compose.prod.yml logs -f",
+    "clean": "docker compose -f docker-compose.yml down -v --rmi local",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "typecheck": "tsc --noEmit",
+    "validate": "node --import tsx src/validate.ts",
+    "generate": "node --import tsx src/generate.ts"
+  },
+  "dependencies": {
+    "js-yaml": "^4.1.0",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^22.12.0",
+    "eslint": "^9.19.0",
+    "tsx": "^4.19.0",
+    "typescript": "~5.7.3",
+    "vitest": "^2.1.0"
+  },
+  "keywords": [
+    "dcyfr",
+    "docker",
+    "containerization",
+    "devops",
+    "template",
+    "multi-stage",
+    "production"
+  ],
+  "author": "DCYFR <hello@dcyfr.ai>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dcyfr/dcyfr-ai-docker.git"
+  }
+}

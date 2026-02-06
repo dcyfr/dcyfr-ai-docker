@@ -1,0 +1,151 @@
+# ==============================================================================
+# Kubernetes Deployment Example
+# ==============================================================================
+# Basic Kubernetes manifests for deploying the DCYFR AI application.
+#
+# Usage:
+#   kubectl apply -f examples/kubernetes/
+#   kubectl delete -f examples/kubernetes/
+# ==============================================================================
+
+---
+# Namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dcyfr-ai
+  labels:
+    app.kubernetes.io/part-of: dcyfr-ai
+
+---
+# ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dcyfr-ai-config
+  namespace: dcyfr-ai
+data:
+  NODE_ENV: "production"
+  PORT: "3000"
+  LOG_LEVEL: "info"
+
+---
+# Secret (use kubectl create secret or sealed-secrets in production)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: dcyfr-ai-secrets
+  namespace: dcyfr-ai
+type: Opaque
+stringData:
+  DATABASE_URL: "postgresql://app:secret@postgres:5432/dcyfr"
+  REDIS_URL: "redis://redis:6379"
+
+---
+# Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dcyfr-ai-app
+  namespace: dcyfr-ai
+  labels:
+    app: dcyfr-ai-app
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: dcyfr-ai-app
+  template:
+    metadata:
+      labels:
+        app: dcyfr-ai-app
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        fsGroup: 1001
+      containers:
+        - name: app
+          image: ghcr.io/dcyfr/dcyfr-ai-app:latest
+          ports:
+            - containerPort: 3000
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: dcyfr-ai-config
+            - secretRef:
+                name: dcyfr-ai-secrets
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 12
+
+---
+# Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: dcyfr-ai-app
+  namespace: dcyfr-ai
+spec:
+  type: ClusterIP
+  selector:
+    app: dcyfr-ai-app
+  ports:
+    - port: 80
+      targetPort: 3000
+      protocol: TCP
+
+---
+# Horizontal Pod Autoscaler
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: dcyfr-ai-app
+  namespace: dcyfr-ai
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: dcyfr-ai-app
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80

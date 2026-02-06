@@ -1,0 +1,95 @@
+# ==============================================================================
+# DCYFR AI Docker - Development Docker Compose
+# ==============================================================================
+# Development environment with hot reload, database, and Redis.
+#
+# Usage:
+#   docker compose up        # Start all services
+#   docker compose up -d     # Start in background
+#   docker compose down      # Stop all services
+#   docker compose logs -f   # Follow logs
+# ==============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # Application (Development)
+  # ---------------------------------------------------------------------------
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: dcyfr-ai-app-dev
+    ports:
+      - "${PORT:-3000}:${PORT:-3000}"
+      - "9229:9229"  # Debug port
+    volumes:
+      - .:/app
+      - /app/node_modules  # Preserve container node_modules
+    environment:
+      - NODE_ENV=development
+      - PORT=${PORT:-3000}
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/app
+      - REDIS_URL=redis://redis:6379
+      - LOG_LEVEL=${LOG_LEVEL:-debug}
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - dcyfr-network
+
+  # ---------------------------------------------------------------------------
+  # PostgreSQL Database
+  # ---------------------------------------------------------------------------
+  db:
+    image: postgres:16-alpine
+    container_name: dcyfr-ai-db
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: app
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - dcyfr-network
+
+  # ---------------------------------------------------------------------------
+  # Redis Cache
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: dcyfr-ai-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - dcyfr-network
+
+volumes:
+  pgdata:
+    driver: local
+  redisdata:
+    driver: local
+
+networks:
+  dcyfr-network:
+    driver: bridge
