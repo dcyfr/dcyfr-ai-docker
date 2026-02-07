@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.1
+
+### Patch Changes
+
+- 74df24c: Migrate to changesets for automated publishing with Trusted Publishers
+
 All notable changes to `@dcyfr/ai-docker` will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
@@ -8,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.0] - 2026-02-06
 
 ### Added
+
 - Dockerfile generator with multi-stage build support
 - Docker Compose generator for dev and production environments
 - Dockerfile validator with 10 security rules and scoring

@@ -1,6 +1,6 @@
 {
   "name": "@dcyfr/ai-docker",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Production-ready Docker containerization templates for DCYFR AI applications",
   "type": "module",
   "engines": {
