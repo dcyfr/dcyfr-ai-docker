@@ -7,8 +7,9 @@
     "node": ">=20.0.0"
   },
   "scripts": {
-    "build": "docker compose -f docker-compose.yml build",
-    "build:prod": "docker compose -f docker-compose.prod.yml build",
+    "build": "tsc",
+    "build:docker": "docker compose -f docker-compose.yml build",
+    "build:docker:prod": "docker compose -f docker-compose.prod.yml build",
     "up": "docker compose -f docker-compose.yml up",
     "up:detach": "docker compose -f docker-compose.yml up -d",
     "up:prod": "docker compose -f docker-compose.prod.yml up -d",
@@ -29,7 +30,7 @@
     "changeset": "changeset",
     "changeset:version": "changeset version",
     "changeset:publish": "changeset publish",
-    "release": "changeset publish"
+    "release": "npm run build && changeset publish"
   },
   "dependencies": {
     "zod": "^3.24.2"

@@ -1,0 +1,1185 @@
+# @dcyfr/ai-docker API Reference
+
+**Version:** 1.0.0  
+**Last Updated:** February 8, 2026
+
+Production-ready Docker containerization templates for DCYFR AI applications. Generate optimized Dockerfiles and docker-compose.yml configurations with built-in security validation and best practices.
+
+---
+
+## Table of Contents
+
+1. [Installation](#installation)
+2. [Quick Start](#quick-start)
+3. [Core Concepts](#core-concepts)
+4. [Generator API](#generator-api)
+5. [Validator API](#validator-api)
+6. [Type Definitions](#type-definitions)
+7. [Configuration Reference](#configuration-reference)
+8. [Code Examples](#code-examples)
+9. [Security Best Practices](#security-best-practices)
+10. [Migration Guide](#migration-guide)
+11. [API Stability](#api-stability)
+
+---
+
+## Installation
+
+### Requirements
+
+- **Node.js:** ≥20.0.0
+- **TypeScript:** ~5.7.3 (for TypeScript projects)
+- **Docker:** ≥24.0.0 (for building containers)
+- **Docker Compose:** ≥2.20.0 (for multi-container apps)
+
+### Install
+
+```bash
+npm install @dcyfr/ai-docker
+```
+
+### TypeScript Configuration
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "types": ["node"]
+  }
+}
+```
+
+---
+
+## Quick Start
+
+### Generate a Dockerfile
+
+```typescript
+import { generateDockerfile } from '@dcyfr/ai-docker';
+
+const dockerfile = generateDockerfile({
+  nodeVersion: '22-alpine',
+  port: 3000,
+  multiStage: true,
+  nonRoot: true,
+  healthCheck: true,
+  labels: {
+    'ai.dcyfr.app': 'my-api',
+    'ai.dcyfr.version': '1.0.0'
+  }
+});
+
+console.log(dockerfile);
+```
+
+### Generate Docker Compose
+
+```typescript
+import { generateCompose } from '@dcyfr/ai-docker';
+
+const composeYml = generateCompose({
+  projectName: 'my-app',
+  services: [
+    {
+      name: 'api',
+      build: { context: '.', dockerfile: 'Dockerfile' },
+      ports: ['3000:3000'],
+      environment: {
+        NODE_ENV: 'production',
+        PORT: '3000'
+      }
+    },
+    {
+      name: 'postgres',
+      image: 'postgres:16-alpine',
+      environment: {
+        POSTGRES_DB: 'myapp',
+        POSTGRES_USER: 'dcyfr',
+        POSTGRES_PASSWORD: '${DB_PASSWORD}'
+      },
+      volumes: ['postgres-data:/var/lib/postgresql/data']
+    }
+  ],
+  volumes: ['postgres-data'],
+  network: 'myapp-network'
+});
+
+console.log(composeYml);
+```
+
+### Validate a Dockerfile
+
+```typescript
+import { validateDockerfile } from '@dcyfr/ai-docker';
+import { readFileSync } from 'fs';
+
+const content = readFileSync('./Dockerfile', 'utf8');
+const result = validateDockerfile(content);
+
+if (!result.valid) {
+  console.error('Validation failed:');
+  for (const error of result.errors) {
+    console.error(`  ❌ [${error.rule}] ${error.message}`);
+  }
+}
+
+if (result.warnings.length > 0) {
+  console.warn('Warnings:');
+  for (const warning of result.warnings) {
+    console.warn(`  ⚠️  [${warning.rule}] ${warning.message}`);
+  }
+}
+
+console.log(`Security score: ${result.score}/100`);
+```
+
+---
+
+## Core Concepts
+
+### Multi-Stage Build
+
+**@dcyfr/ai-docker** generates multi-stage Dockerfiles by default:
+
+1. **Stage 1: Dependencies** - Install production dependencies only
+2. **Stage 2: Build** - Compile TypeScript to JavaScript
+3. **Stage 3: Production** - Final minimal image with built artifacts
+
+**Benefits:**
+- Smaller final image size (50-70% reduction)
+- No build tools in production image
+- Faster cold starts
+- Reduced attack surface
+
+### Security-First Design
+
+All generated Dockerfiles follow DCYFR security standards:
+
+- ✅ Run as non-root user (`USER dcyfr`)
+- ✅ Pin base image versions (no `:latest`)
+- ✅ Minimal Alpine-based images
+- ✅ Health check instructions
+- ✅ No secrets in environment variables
+- ✅ Proper layer caching (dependencies before source)
+
+### Configuration Validation
+
+All inputs are validated using Zod schemas:
+
+```typescript
+import { DockerBuildConfigSchema } from '@dcyfr/ai-docker';
+
+// Automatic validation with defaults
+const config = DockerBuildConfigSchema.parse({
+  nodeVersion: '22-alpine',
+  port: 3000
+});
+
+// Type-safe output
+console.log(config.multiStage); // true (default)
+console.log(config.nonRoot);    // true (default)
+```
+
+---
+
+## Generator API
+
+### `generateDockerfile()`
+
+Generates a production-ready Dockerfile from configuration.
+
+#### Signature
+
+```typescript
+function generateDockerfile(config?: Partial<DockerBuildConfig>): string
+```
+
+#### Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `config` | `Partial<DockerBuildConfig>` | Dockerfile configuration (all fields optional) |
+
+#### Returns
+
+`string` - Complete Dockerfile as a string
+
+#### Example: Basic Dockerfile
+
+```typescript
+import { generateDockerfile } from '@dcyfr/ai-docker';
+
+const dockerfile = generateDockerfile({
+  nodeVersion: '22-alpine',
+  port: 8080,
+  multiStage: true
+});
+
+// Output:
+// # Auto-generated by @dcyfr/ai-docker
+// # Generated: 2026-02-08T...
+//
+// # Stage 1: Dependencies
+// FROM node:22-alpine AS deps
+// WORKDIR /app
+// COPY package.json package-lock.json* ./
+// RUN npm ci --omit=dev && npm cache clean --force
+//
+// # Stage 2: Build
+// ...
+```
+
+#### Example: Custom Labels
+
+```typescript
+const dockerfile = generateDockerfile({
+  labels: {
+    'ai.dcyfr.app': 'my-service',
+    'ai.dcyfr.version': '1.2.3',
+    'ai.dcyfr.team': 'platform',
+    'maintainer': 'hello@dcyfr.ai'
+  }
+});
+```
+
+#### Example: Native Dependencies
+
+```typescript
+// For packages requiring native build tools (node-gyp, etc.)
+const dockerfile = generateDockerfile({
+  nativeDeps: true  // Installs python3, make, g++
+});
+```
+
+### `generateCompose()`
+
+Generates a docker-compose.yml file from configuration.
+
+#### Signature
+
+```typescript
+function generateCompose(config: ComposeConfig): string
+```
+
+#### Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `config` | `ComposeConfig` | Docker Compose configuration |
+
+#### Returns
+
+`string` - Complete docker-compose.yml as YAML string
+
+#### Example: API + Database
+
+```typescript
+import { generateCompose } from '@dcyfr/ai-docker';
+
+const composeYml = generateCompose({
+  projectName: 'ecommerce-api',
+  services: [
+    {
+      name: 'api',
+      build: { context: '.', dockerfile: 'Dockerfile' },
+      ports: ['3000:3000'],
+      environment: {
+        NODE_ENV: 'production',
+        DATABASE_URL: 'postgresql://dcyfr:${DB_PASSWORD}@postgres:5432/ecommerce'
+      },
+      dependsOn: ['postgres', 'redis'],
+      restart: 'unless-stopped'
+    },
+    {
+      name: 'postgres',
+      image: 'postgres:16-alpine',
+      environment: {
+        POSTGRES_DB: 'ecommerce',
+        POSTGRES_USER: 'dcyfr',
+        POSTGRES_PASSWORD: '${DB_PASSWORD}'
+      },
+      volumes: ['postgres-data:/var/lib/postgresql/data'],
+      restart: 'unless-stopped'
+    },
+    {
+      name: 'redis',
+      image: 'redis:7-alpine',
+      volumes: ['redis-data:/data'],
+      restart: 'unless-stopped'
+    }
+  ],
+  volumes: ['postgres-data', 'redis-data'],
+  network: 'ecommerce-network'
+});
+
+console.log(composeYml);
+```
+
+#### Example: Resource Limits
+
+```typescript
+const composeYml = generateCompose({
+  projectName: 'resource-limited',
+  services: [
+    {
+      name: 'worker',
+      image: 'my-worker:latest',
+      resources: {
+        cpus: '0.5',    // Limit to 0.5 CPU cores
+        memory: '256M'  // Limit to 256MB RAM
+      }
+    }
+  ]
+});
+```
+
+### `generateProject()`
+
+Generates a complete Docker project (Dockerfile + docker-compose.yml + .dockerignore).
+
+#### Signature
+
+```typescript
+function generateProject(options: Partial<GenerateOptions>): {
+  dockerfile: string;
+  compose: string;
+  dockerignore: string;
+  composeProduction: string;
+}
+```
+
+#### Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `options` | `Partial<GenerateOptions>` | Project generation options |
+
+#### Returns
+
+Object with 4 properties:
+- `dockerfile` - Production Dockerfile
+- `compose` - Development docker-compose.yml
+- `dockerignore` - .dockerignore file
+- `composeProduction` - Production docker-compose.yml
+
+#### Example: Full Stack Application
+
+```typescript
+import { generateProject } from '@dcyfr/ai-docker';
+import { writeFileSync } from 'fs';
+
+const project = generateProject({
+  appType: 'web',
+  database: 'postgres',
+  redis: true,
+  nginx: true,
+  target: 'both'  // Generate dev + prod configs
+});
+
+// Write files
+writeFileSync('./Dockerfile', project.dockerfile);
+writeFileSync('./docker-compose.yml', project.compose);
+writeFileSync('./docker-compose.prod.yml', project.composeProduction);
+writeFileSync('./.dockerignore', project.dockerignore);
+
+console.log('✅ Docker project generated!');
+```
+
+#### Example: API Service Only
+
+```typescript
+const project = generateProject({
+  appType: 'api',
+  database: 'none',
+  redis: false,
+  nginx: false,
+  target: 'production'
+});
+
+// Minimal API-only configuration
+writeFileSync('./Dockerfile', project.dockerfile);
+writeFileSync('./docker-compose.prod.yml', project.composeProduction);
+```
+
+---
+
+## Validator API
+
+### `validateDockerfile()`
+
+Validates a Dockerfile against DCYFR best practices and security rules.
+
+#### Signature
+
+```typescript
+function validateDockerfile(content: string): ValidationResult
+```
+
+#### Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `content` | `string` | Dockerfile content as a string |
+
+#### Returns
+
+`ValidationResult` object:
+
+```typescript
+interface ValidationResult {
+  valid: boolean;           // true if no errors
+  errors: ValidationError[]; // Critical issues (must fix)
+  warnings: ValidationWarning[]; // Suggestions (should fix)
+  score: number;            // Security score 0-100
+}
+```
+
+#### Example: Validate Existing Dockerfile
+
+```typescript
+import { validateDockerfile } from '@dcyfr/ai-docker';
+import { readFileSync } from 'fs';
+
+const content = readFileSync('./Dockerfile', 'utf8');
+const result = validateDockerfile(content);
+
+console.log(`Valid: ${result.valid}`);
+console.log(`Score: ${result.score}/100`);
+
+if (!result.valid) {
+  // Critical errors - must fix
+  for (const error of result.errors) {
+    console.error(`❌ [${error.rule}] ${error.message}`);
+    if (error.line) {
+      console.error(`   Line ${error.line}`);
+    }
+  }
+}
+
+// Warnings - should fix
+for (const warning of result.warnings) {
+  console.warn(`⚠️  [${warning.rule}] ${warning.message}`);
+}
+```
+
+#### Example: CI/CD Validation
+
+```typescript
+import { validateDockerfile } from '@dcyfr/ai-docker';
+import { readFileSync, existsSync } from 'fs';
+
+// Validate Dockerfile in CI pipeline
+const dockerfilePath = './Dockerfile';
+
+if (!existsSync(dockerfilePath)) {
+  console.error('❌ Dockerfile not found');
+  process.exit(1);
+}
+
+const content = readFileSync(dockerfilePath, 'utf8');
+const result = validateDockerfile(content);
+
+// Fail CI if validation fails or score is too low
+if (!result.valid) {
+  console.error('❌ Dockerfile validation failed');
+  process.exit(1);
+}
+
+if (result.score < 80) {
+  console.error(`❌ Security score too low: ${result.score}/100 (minimum: 80)`);
+  process.exit(1);
+}
+
+console.log(`✅ Dockerfile validated successfully (score: ${result.score}/100)`);
+```
+
+### `getValidationRules()`
+
+Returns all validation rules used by the validator.
+
+#### Signature
+
+```typescript
+function getValidationRules(): Array<{
+  id: string;
+  description: string;
+  severity: 'error' | 'warning';
+}>
+```
+
+#### Returns
+
+Array of rule objects
+
+#### Example: List All Rules
+
+```typescript
+import { getValidationRules } from '@dcyfr/ai-docker';
+
+const rules = getValidationRules();
+
+console.log('Docker Validation Rules:');
+for (const rule of rules) {
+  const icon = rule.severity === 'error' ? '❌' : '⚠️';
+  console.log(`${icon} [${rule.id}] ${rule.description}`);
+}
+
+// Output:
+// ❌ [no-root-user] Container should not run as root
+// ⚠️  [no-latest-tag] Base images should not use :latest tag
+// ⚠️  [healthcheck-present] Dockerfile should include a HEALTHCHECK instruction
+// ...
+```
+
+---
+
+## Type Definitions
+
+### `DockerBuildConfig`
+
+Configuration for Dockerfile generation.
+
+```typescript
+interface DockerBuildConfig {
+  /** Base Node.js image tag (default: '22-alpine') */
+  nodeVersion: string;
+  
+  /** Application port (default: 3000) */
+  port: number;
+  
+  /** Working directory inside container (default: '/app') */
+  workdir: string;
+  
+  /** Enable multi-stage build (default: true) */
+  multiStage: boolean;
+  
+  /** Run as non-root user (default: true) */
+  nonRoot: boolean;
+  
+  /** Add health check instruction (default: true) */
+  healthCheck: boolean;
+  
+  /** Install native build tools (python3, make, g++) (default: false) */
+  nativeDeps: boolean;
+  
+  /** Custom Docker labels (default: {}) */
+  labels: Record<string, string>;
+}
+```
+
+### `ComposeService`
+
+Docker Compose service definition.
+
+```typescript
+interface ComposeService {
+  /** Service name */
+  name: string;
+  
+  /** Docker image (mutually exclusive with build) */
+  image?: string;
+  
+  /** Build context (mutually exclusive with image) */
+  build?: {
+    context: string;     // default: '.'
+    dockerfile: string;  // default: 'Dockerfile'
+  };
+  
+  /** Port mappings (host:container) (default: []) */
+  ports: string[];
+  
+  /** Environment variables (default: {}) */
+  environment: Record<string, string>;
+  
+  /** Volume mounts (default: []) */
+  volumes: string[];
+  
+  /** Services this depends on (default: []) */
+  dependsOn: string[];
+  
+  /** Resource limits (optional) */
+  resources?: {
+    cpus: string;    // e.g., '1.0', '0.5'
+    memory: string;  // e.g., '512M', '1G'
+  };
+  
+  /** Health check command (optional) */
+  healthCheck?: string;
+  
+  /** Restart policy (default: 'unless-stopped') */
+  restart: 'no' | 'always' | 'unless-stopped' | 'on-failure';
+}
+```
+
+### `ComposeConfig`
+
+Docker Compose project configuration.
+
+```typescript
+interface ComposeConfig {
+  /** Project name */
+  projectName: string;
+  
+  /** Array of services */
+  services: ComposeService[];
+  
+  /** Named volumes (default: []) */
+  volumes: string[];
+  
+  /** Network name (default: 'dcyfr-network') */
+  network: string;
+}
+```
+
+### `GenerateOptions`
+
+Options for generating complete Docker projects.
+
+```typescript
+interface GenerateOptions {
+  /** Application type (default: 'api') */
+  appType: 'api' | 'web' | 'worker' | 'static';
+  
+  /** Include database service (default: 'none') */
+  database: 'none' | 'postgres' | 'mysql' | 'sqlite';
+  
+  /** Include Redis cache (default: false) */
+  redis: boolean;
+  
+  /** Include Nginx reverse proxy (default: false) */
+  nginx: boolean;
+  
+  /** Target environment (default: 'both') */
+  target: 'development' | 'production' | 'both';
+  
+  /** Output directory (default: '.') */
+  outputDir: string;
+}
+```
+
+### `ValidationResult`
+
+Result of Dockerfile validation.
+
+```typescript
+interface ValidationResult {
+  /** true if no errors */
+  valid: boolean;
+  
+  /** Critical issues (must fix) */
+  errors: ValidationError[];
+  
+  /** Suggestions (should fix) */
+  warnings: ValidationWarning[];
+  
+  /** Security score 0-100 */
+  score: number;
+}
+
+interface ValidationError {
+  rule: string;
+  message: string;
+  line?: number;
+  severity: 'error';
+}
+
+interface ValidationWarning {
+  rule: string;
+  message: string;
+  line?: number;
+  severity: 'warning';
+}
+```
+
+### `SecurityRule`
+
+Security validation rules (type-safe enum).
+
+```typescript
+type SecurityRule =
+  | 'no-root-user'
+  | 'no-latest-tag'
+  | 'copy-before-run'
+  | 'use-multi-stage'
+  | 'healthcheck-present'
+  | 'no-add-instruction'
+  | 'pin-versions'
+  | 'no-secrets-in-env';
+```
+
+---
+
+## Configuration Reference
+
+### Node Version Selection
+
+Supported Node.js versions:
+
+| Version | Tag | Size | Use Case |
+|---------|-----|------|----------|
+| Node 22 | `22-alpine` | ~40MB | **Recommended** (LTS through 2027) |
+| Node 20 | `20-alpine` | ~38MB | LTS (until 2026-04-30) |
+| Node 18 | `18-alpine` | ~36MB | Legacy (EOL 2025-04-30) |
+
+**Always use `-alpine` variants for production** (90% smaller than Debian-based images).
+
+### Port Configuration
+
+Default: `3000`
+
+Common ports:
+- HTTP API: `3000`, `8080`
+- HTTPS: `443`
+- GraphQL: `4000`
+- WebSocket: `8080`
+- Static: `80`, `8080`
+
+### Environment-Specific Configurations
+
+#### Development
+
+```typescript
+const devConfig = {
+  multiStage: false,  // Faster builds
+  healthCheck: false, // Not needed in dev
+  nonRoot: false     // Easier debugging
+};
+```
+
+#### Production
+
+```typescript
+const prodConfig = {
+  multiStage: true,   // Smaller images
+  healthCheck: true,  // Required for orchestration
+  nonRoot: true,      // Security best practice
+  labels: {
+    'ai.dcyfr.environment': 'production',
+    'ai.dcyfr.version': process.env.VERSION || 'latest'
+  }
+};
+```
+
+---
+
+## Code Examples
+
+### Example 1: Express API with PostgreSQL
+
+```typescript
+import { generateProject } from '@dcyfr/ai-docker';
+import { writeFileSync, mkdirSync } from 'fs';
+
+const project = generateProject({
+  appType: 'api',
+  database: 'postgres',
+  redis: true,
+  target: 'both'
+});
+
+// Create docker directory
+mkdirSync('./docker', { recursive: true });
+
+// Write files
+writeFileSync('./Dockerfile', project.dockerfile);
+writeFileSync('./docker-compose.yml', project.compose);
+writeFileSync('./docker-compose.prod.yml', project.composeProduction);
+writeFileSync('./.dockerignore', project.dockerignore);
+
+console.log('✅ Express + PostgreSQL + Redis project generated');
+```
+
+### Example 2: Next.js Web Application with Nginx
+
+```typescript
+import { generateProject } from '@dcyfr/ai-docker';
+import { writeFileSync } from 'fs';
+
+const project = generateProject({
+  appType: 'web',
+  database: 'none',
+  redis: false,
+  nginx: true,
+  target: 'production'
+});
+
+writeFileSync('./Dockerfile', project.dockerfile);
+writeFileSync('./docker-compose.prod.yml', project.composeProduction);
+
+// Custom Nginx config for Next.js
+const nginxConf = `
+server {
+  listen 80;
+  server_name _;
+  
+  location / {
+    proxy_pass http://web:3000;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection 'upgrade';
+    proxy_set_header Host $host;
+    proxy_cache_bypass $http_upgrade;
+  }
+}
+`;
+
+writeFileSync('./nginx.conf', nginxConf);
+
+console.log('✅ Next.js + Nginx project generated');
+```
+
+### Example 3: Worker Service with Dependencies
+
+```typescript
+import { generateDockerfile, generateCompose } from '@dcyfr/ai-docker';
+import { writeFileSync } from 'fs';
+
+// Dockerfile with native dependencies for image processing
+const dockerfile = generateDockerfile({
+  nodeVersion: '22-alpine',
+  nativeDeps: true,  // Installs build tools for sharp, canvas, etc.
+  labels: {
+    'ai.dcyfr.app': 'image-processor',
+    'ai.dcyfr.type': 'worker'
+  }
+});
+
+// Compose with RabbitMQ message queue
+const compose = generateCompose({
+  projectName: 'image-processor',
+  services: [
+    {
+      name: 'worker',
+      build: { context: '.', dockerfile: 'Dockerfile' },
+      environment: {
+        RABBITMQ_URL: 'amqp://guest:guest@rabbitmq:5672',
+        WORKER_CONCURRENCY: '4'
+      },
+      dependsOn: ['rabbitmq'],
+      resources: {
+        cpus: '2.0',
+        memory: '2G'
+      }
+    },
+    {
+      name: 'rabbitmq',
+      image: 'rabbitmq:3-management-alpine',
+      ports: ['5672:5672', '15672:15672'],
+      volumes: ['rabbitmq-data:/var/lib/rabbitmq']
+    }
+  ],
+  volumes: ['rabbitmq-data']
+});
+
+writeFileSync('./Dockerfile', dockerfile);
+writeFileSync('./docker-compose.yml', compose);
+
+console.log('✅ Worker service generated');
+```
+
+### Example 4: Validation in Pre-Commit Hook
+
+```typescript
+import { validateDockerfile } from '@dcyfr/ai-docker';
+import { readFileSync, existsSync } from 'fs';
+import { join } from 'path';
+
+// .husky/pre-commit
+const dockerfilePath = join(process.cwd(), 'Dockerfile');
+
+if (!existsSync(dockerfilePath)) {
+  console.log('No Dockerfile found, skipping validation');
+  process.exit(0);
+}
+
+const content = readFileSync(dockerfilePath, 'utf8');
+const result = validateDockerfile(content);
+
+if (!result.valid) {
+  console.error('❌ Dockerfile validation failed\n');
+  for (const error of result.errors) {
+    console.error(`   ${error.rule}: ${error.message}`);
+  }
+  console.error('\nFix errors before committing\n');
+  process.exit(1);
+}
+
+if (result.warnings.length > 0) {
+  console.warn('⚠️  Dockerfile warnings:\n');
+  for (const warning of result.warnings) {
+    console.warn(`   ${warning.rule}: ${warning.message}`);
+  }
+  console.warn();
+}
+
+console.log(`✅ Dockerfile validated (score: ${result.score}/100)`);
+```
+
+### Example 5: Multi-Environment Deployment
+
+```typescript
+import { generateDockerfile } from '@dcyfr/ai-docker';
+import { writeFileSync } from 'fs';
+
+// Development Dockerfile (faster builds, easier debugging)
+const devDockerfile = generateDockerfile({
+  nodeVersion: '22',  // Full image, not alpine
+  multiStage: false,
+  nonRoot: false,
+  healthCheck: false,
+  labels: {
+    'ai.dcyfr.environment': 'development'
+  }
+});
+
+// Staging Dockerfile (production-like)
+const stagingDockerfile = generateDockerfile({
+  nodeVersion: '22-alpine',
+  multiStage: true,
+  nonRoot: true,
+  healthCheck: true,
+  labels: {
+    'ai.dcyfr.environment': 'staging'
+  }
+});
+
+// Production Dockerfile (fully optimized)
+const prodDockerfile = generateDockerfile({
+  nodeVersion: '22-alpine',
+  multiStage: true,
+  nonRoot: true,
+  healthCheck: true,
+  labels: {
+    'ai.dcyfr.environment': 'production',
+    'ai.dcyfr.version': process.env.VERSION || '1.0.0'
+  }
+});
+
+writeFileSync('./Dockerfile.dev', devDockerfile);
+writeFileSync('./Dockerfile.staging', stagingDockerfile);
+writeFileSync('./Dockerfile', prodDockerfile);
+
+console.log('✅ Multi-environment Dockerfiles generated');
+```
+
+---
+
+## Security Best Practices
+
+### 1. Never Run as Root
+
+```typescript
+// ✅ CORRECT
+const dockerfile = generateDockerfile({
+  nonRoot: true  // Creates USER dcyfr
+});
+
+// ❌ WRONG
+const badDockerfile = `
+FROM node:22-alpine
+WORKDIR /app
+COPY . .
+RUN npm install
+CMD ["node", "server.js"]
+# No USER instruction - runs as root!
+`;
+```
+
+### 2. Always Pin Base Image Versions
+
+```typescript
+// ✅ CORRECT
+const dockerfile = generateDockerfile({
+  nodeVersion: '22-alpine'  // Specific version
+});
+
+// ❌ WRONG
+FROM node:latest  // Unpredictable, fails validation
+```
+
+### 3. Use Multi-Stage Builds
+
+```typescript
+// ✅ CORRECT
+const dockerfile = generateDockerfile({
+  multiStage: true  // 3-stage build: deps → build → production
+});
+
+// Benefits:
+// - 50-70% smaller final image
+// - No dev dependencies in production
+// - No build tools in production
+// - Reduced attack surface
+```
+
+### 4. Never Hardcode Secrets
+
+```typescript
+// ✅ CORRECT - Use environment variables
+const compose = generateCompose({
+  projectName: 'secure-app',
+  services: [
+    {
+      name: 'api',
+      environment: {
+        DATABASE_URL: 'postgresql://user:${DB_PASSWORD}@postgres:5432/db',
+        JWT_SECRET: '${JWT_SECRET}',  // Loaded from .env
+        API_KEY: '${API_KEY}'
+      }
+    }
+  ]
+});
+
+// ❌ WRONG - Hardcoded secrets
+environment: {
+  DATABASE_URL: 'postgresql://user:password123@postgres:5432/db',  // NEVER!
+  JWT_SECRET: 'my-secret-key'  // NEVER!
+}
+```
+
+### 5. Include Health Checks
+
+```typescript
+// ✅ CORRECT
+const dockerfile = generateDockerfile({
+  healthCheck: true,  // Adds HEALTHCHECK instruction
+  port: 3000
+});
+
+// Generated HEALTHCHECK:
+// HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+//   CMD node -e "require('http').get('http://localhost:3000/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"
+```
+
+### 6. Optimize Layer Caching
+
+```typescript
+// DCYFR automatically optimizes layer caching:
+// 1. COPY package files first
+// 2. RUN npm install
+// 3. COPY source code last
+
+// This means:
+// - Changing source code doesn't invalidate npm install cache
+// - Faster builds (only rebuild changed layers)
+```
+
+### 7. Use .dockerignore
+
+```typescript
+const project = generateProject({ appType: 'api' });
+
+// Generated .dockerignore:
+writeFileSync('./.dockerignore', project.dockerignore);
+
+// Contents:
+// node_modules/
+// npm-debug.log
+// .env
+// .env.local
+// .git/
+// .github/
+// dist/
+// coverage/
+// *.test.ts
+// *.spec.ts
+```
+
+---
+
+## Migration Guide
+
+### Migrating from v0.1.x to v1.0.0
+
+#### Breaking Changes
+
+**None.** Version 1.0.0 is fully backward compatible with 0.1.x.
+
+#### New Features in v1.0.0
+
+1. **TypeScript Build Script** - `npm run build` now compiles TypeScript
+2. **Type Declarations** - Full `.d.ts` support in `dist/`
+3. **Comprehensive API Docs** - This document (2,000+ words)
+4. **Enhanced Validation** - New security rules and improved scoring
+
+#### Deprecation Policy
+
+No deprecations in v1.0.0.
+
+#### Upgrade Steps
+
+```bash
+# Update package
+npm install @dcyfr/ai-docker@^1.0.0
+
+# Verify installation
+npm run build
+npm run test:coverage
+npm run lint
+
+# No code changes required
+```
+
+---
+
+## API Stability
+
+### Semantic Versioning Commitment
+
+@dcyfr/ai-docker follows [Semantic Versioning 2.0.0](https://semver.org/):
+
+- **MAJOR (v2.0.0):** Breaking changes to public API
+- **MINOR (v1.1.0):** New features, backward compatible
+- **PATCH (v1.0.1):** Bug fixes, backward compatible
+
+### Public API Surface
+
+**Stable APIs (guaranteed backward compatibility):**
+- `generateDockerfile(config)`
+- `generateCompose(config)`
+- `generateProject(options)`
+- `validateDockerfile(content)`
+- `getValidationRules()`
+- All exported types and schemas
+
+**Internal APIs (may change without notice):**
+- Functions not exported from `index.ts`
+- Private helper functions
+- Internal validation rules implementation
+
+### Deprecation Process
+
+1. **Announcement:** Deprecated APIs announced in CHANGELOG + GitHub Releases
+2. **Grace Period:** Minimum 6 months before removal
+3. **Migration Guide:** Alternatives provided in docs
+4. **Warnings:** Runtime warnings for deprecated usage
+5. **Removal:** Only in next MAJOR version
+
+### Feature Requests
+
+Submit feature requests via [GitHub Issues](https://github.com/dcyfr/dcyfr-ai-docker/issues).
+
+Priority given to:
+- Security improvements
+- Performance optimizations
+- Developer experience enhancements
+- Real-world production use cases
+
+---
+
+## Support
+
+- **Documentation:** https://dcyfr.ai/docs/ai-docker
+- **GitHub:** https://github.com/dcyfr/dcyfr-ai-docker
+- **Issues:** https://github.com/dcyfr/dcyfr-ai-docker/issues
+- **Email:** hello@dcyfr.ai
+- **Discord:** https://discord.gg/dcyfr
+
+---
+
+**Last Updated:** February 8, 2026  
+**Package Version:** 1.0.0  
+**License:** MIT
