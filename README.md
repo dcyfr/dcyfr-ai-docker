@@ -7,6 +7,8 @@
 
 Multi-stage Dockerfiles, Docker Compose configurations, Nginx reverse proxy, health checks, security hardening, and Kubernetes manifests — all designed to work with any DCYFR AI template.
 
+> **📦 Starter Template** — This is a **starter template** for cloning, not an npm package. Use `git clone` or download the source to add Docker support to your application. This package is marked `private: true` and is not published to npm.
+
 ## ✨ Features
 
 - 🐳 **Multi-Stage Builds** — Optimized layer caching, minimal production images
