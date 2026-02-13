@@ -60,6 +60,6 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/dcyfr/dcyfr-ai-docker.git"
+    "url": "git+https://github.com/dcyfr/dcyfr-ai-docker.git"
   }
 }
