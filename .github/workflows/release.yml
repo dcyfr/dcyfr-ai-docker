@@ -50,7 +50,10 @@ jobs:
         run: |
           npm install
           npm install -D @changesets/cli @changesets/changelog-github
-      
+
+      - name: Upgrade npm for Trusted Publishing
+        run: npm install -g npm@latest
+
       - name: Verify npm version for Trusted Publisher
         run: |
           echo "npm version:"
