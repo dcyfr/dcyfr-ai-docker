@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.1
+
+### Patch Changes
+
+- 9289456: test: verify OIDC Trusted Publisher authentication
+
+  This patch release tests the newly configured Trusted Publisher OIDC authentication workflow. The publication should succeed using GitHub Actions OIDC tokens instead of npm secrets, demonstrating enhanced supply chain security through cryptographic provenance.
+
 ## 1.0.0
 
 ### Major Changes

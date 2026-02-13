@@ -32,6 +32,9 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           registry-url: 'https://registry.npmjs.org'
           cache: ''  # No cache - package is part of workspace
+          # Enable OIDC authentication
+          always-auth: true
+          token: ${{ secrets.GITHUB_TOKEN }}
       
       - name: Verify OIDC token availability
         run: |
@@ -58,6 +61,31 @@ jobs:
           npm config get registry
           npm config get @dcyfr:registry || echo "@dcyfr scope not configured (will use default)"
       
+      - name: Authenticate with npm using OIDC
+        run: |
+          echo "🔐 Setting up npm authentication with OIDC..."
+          echo "Registry: $(npm config get registry)"
+          echo "NODE_AUTH_TOKEN is set: ${NODE_AUTH_TOKEN:+yes}"
+          
+          if [ -n "$NODE_AUTH_TOKEN" ]; then
+            echo "✅ OIDC token available for npm authentication"
+            echo "Token length: ${#NODE_AUTH_TOKEN}"
+          else
+            echo "❌ NODE_AUTH_TOKEN not available - OIDC may not be working"
+            exit 1
+          fi
+          
+          # Test authentication without publishing
+          echo "🧪 Testing npm authentication..."
+          npm whoami || echo "⚠️ npm authentication test failed - this is expected for OIDC"
+          
+          # Check npm configuration
+          echo "📋 npm configuration:"
+          npm config list
+          
+          echo "🏃‍♂️ Attempting npm ping to registry..."
+          npm ping || echo "⚠️ npm ping failed"
+      
       - name: Run linter
         run: npm run lint
         continue-on-error: true
@@ -71,11 +99,12 @@ jobs:
         continue-on-error: true
       
       - name: Create Release Pull Request or Publish with OIDC
+        id: changesets
         uses: changesets/action@v1
         with:
           publish: npm run release
+          createGithubReleases: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # NODE_AUTH_TOKEN is automatically populated by setup-node action for OIDC
-          # No manual NPM_TOKEN needed with Trusted Publisher
-          NODE_AUTH_TOKEN: ${{ secrets.NODE_AUTH_TOKEN }}
+          # setup-node automatically configures NODE_AUTH_TOKEN for OIDC
+          # No NPM_TOKEN needed - uses Trusted Publisher
