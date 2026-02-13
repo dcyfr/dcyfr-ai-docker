@@ -34,7 +34,8 @@ jobs:
           cache: ''  # No cache - package is part of workspace
           # Enable OIDC authentication
           always-auth: true
-          token: ${{ secrets.GITHUB_TOKEN }}
+          # DO NOT pass token here - setup-node will auto-detect OIDC
+          # Passing GITHUB_TOKEN overrides OIDC detection
       
       - name: Verify OIDC token availability
         run: |
@@ -106,7 +107,5 @@ jobs:
           createGithubReleases: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NODE_AUTH_TOKEN: ${{ env.NODE_AUTH_TOKEN }}
-          # Pass through OIDC token environment variables for Trusted Publisher
-          ACTIONS_ID_TOKEN_REQUEST_TOKEN: ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
-          ACTIONS_ID_TOKEN_REQUEST_URL: ${{ env.ACTIONS_ID_TOKEN_REQUEST_URL }}
+          # setup-node auto-configures npm auth via OIDC when registry-url is set
+          # Changesets will inherit npm configuration from setup-node step
