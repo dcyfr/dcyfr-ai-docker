@@ -106,5 +106,7 @@ jobs:
           createGithubReleases: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # setup-node automatically configures NODE_AUTH_TOKEN for OIDC
-          # No NPM_TOKEN needed - uses Trusted Publisher
+          NODE_AUTH_TOKEN: ${{ env.NODE_AUTH_TOKEN }}
+          # Pass through OIDC token environment variables for Trusted Publisher
+          ACTIONS_ID_TOKEN_REQUEST_TOKEN: ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
+          ACTIONS_ID_TOKEN_REQUEST_URL: ${{ env.ACTIONS_ID_TOKEN_REQUEST_URL }}
