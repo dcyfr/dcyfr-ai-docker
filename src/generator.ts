@@ -5,7 +5,7 @@
  * based on application type and requirements.
  */
 
-import type { DockerBuildConfig, ComposeConfig, GenerateOptions } from './types.js';
+import type { DockerBuildConfig, ComposeConfig, ComposeService, GenerateOptions } from './types.js';
 import { DockerBuildConfigSchema, GenerateOptionsSchema } from './types.js';
 
 // ---------------------------------------------------------------------------
@@ -104,6 +104,62 @@ export function generateDockerfile(config: Partial<DockerBuildConfig> = {}): str
 // Docker Compose Generation
 // ---------------------------------------------------------------------------
 
+function generateServiceBlock(service: ComposeService, network: string): string[] {
+  const lines: string[] = [];
+  lines.push(`  ${service.name}:`);
+
+  if (service.image) lines.push(`    image: ${service.image}`);
+
+  if (service.build) {
+    lines.push('    build:');
+    lines.push(`      context: ${service.build.context}`);
+    lines.push(`      dockerfile: ${service.build.dockerfile}`);
+  }
+
+  if (service.ports.length > 0) {
+    lines.push('    ports:');
+    for (const port of service.ports) {
+      lines.push(`      - "${port}"`);
+    }
+  }
+
+  if (Object.keys(service.environment).length > 0) {
+    lines.push('    environment:');
+    for (const [key, value] of Object.entries(service.environment)) {
+      lines.push(`      - ${key}=${value}`);
+    }
+  }
+
+  if (service.volumes.length > 0) {
+    lines.push('    volumes:');
+    for (const vol of service.volumes) {
+      lines.push(`      - ${vol}`);
+    }
+  }
+
+  if (service.dependsOn.length > 0) {
+    lines.push('    depends_on:');
+    for (const dep of service.dependsOn) {
+      lines.push(`      ${dep}:`);
+      lines.push('        condition: service_healthy');
+    }
+  }
+
+  if (service.healthCheck) {
+    lines.push('    healthcheck:');
+    lines.push(`      test: ${service.healthCheck}`);
+    lines.push('      interval: 10s');
+    lines.push('      timeout: 5s');
+    lines.push('      retries: 5');
+  }
+
+  lines.push(`    restart: ${service.restart}`);
+  lines.push(`    networks:`);
+  lines.push(`      - ${network}`);
+  lines.push('');
+  return lines;
+}
+
 /**
  * Generates a docker-compose.yml configuration from options.
  */
@@ -116,59 +172,7 @@ export function generateCompose(config: ComposeConfig): string {
   lines.push('services:');
 
   for (const service of config.services) {
-    lines.push(`  ${service.name}:`);
-
-    if (service.image) {
-      lines.push(`    image: ${service.image}`);
-    }
-
-    if (service.build) {
-      lines.push('    build:');
-      lines.push(`      context: ${service.build.context}`);
-      lines.push(`      dockerfile: ${service.build.dockerfile}`);
-    }
-
-    if (service.ports.length > 0) {
-      lines.push('    ports:');
-      for (const port of service.ports) {
-        lines.push(`      - "${port}"`);
-      }
-    }
-
-    if (Object.keys(service.environment).length > 0) {
-      lines.push('    environment:');
-      for (const [key, value] of Object.entries(service.environment)) {
-        lines.push(`      - ${key}=${value}`);
-      }
-    }
-
-    if (service.volumes.length > 0) {
-      lines.push('    volumes:');
-      for (const vol of service.volumes) {
-        lines.push(`      - ${vol}`);
-      }
-    }
-
-    if (service.dependsOn.length > 0) {
-      lines.push('    depends_on:');
-      for (const dep of service.dependsOn) {
-        lines.push(`      ${dep}:`);
-        lines.push('        condition: service_healthy');
-      }
-    }
-
-    if (service.healthCheck) {
-      lines.push('    healthcheck:');
-      lines.push(`      test: ${service.healthCheck}`);
-      lines.push('      interval: 10s');
-      lines.push('      timeout: 5s');
-      lines.push('      retries: 5');
-    }
-
-    lines.push(`    restart: ${service.restart}`);
-    lines.push(`    networks:`);
-    lines.push(`      - ${config.network}`);
-    lines.push('');
+    lines.push(...generateServiceBlock(service, config.network));
   }
 
   if (config.volumes.length > 0) {
