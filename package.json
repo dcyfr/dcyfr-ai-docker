@@ -1,5 +1,6 @@
 {
   "name": "@dcyfr/ai-docker",
+  "private": true,
   "version": "1.0.2",
   "description": "Production-ready Docker containerization templates for DCYFR AI applications",
   "type": "module",
@@ -26,11 +27,7 @@
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc --noEmit",
     "validate": "node --import tsx src/validate.ts",
-    "generate": "node --import tsx src/generate.ts",
-    "changeset": "changeset",
-    "changeset:version": "changeset version",
-    "changeset:publish": "changeset publish",
-    "release": "npm run build && changeset publish"
+    "generate": "node --import tsx src/generate.ts"
   },
   "dependencies": {
     "zod": "^3.24.2"
