@@ -1,0 +1,6 @@
+
+
+> @dcyfr/ai-docker@1.0.2 lint
+> eslint . --cache --cache-location .cache/eslint
+
+⠙[1G[0K

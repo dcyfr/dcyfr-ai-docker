@@ -1,0 +1,62 @@
+# DCYFR Agent Container — docker-compose
+# =======================================
+# Local development / test runner for the autonomous agent container image.
+#
+# Usage:
+#   docker compose -f docker-compose.agent.yml build
+#   docker compose -f docker-compose.agent.yml run --rm agent
+#
+# Set required env vars in a .env file or via the command line:
+#   GITHUB_TOKEN=ghp_xxx AGENT_TASK_ID=1.3.1 docker compose -f docker-compose.agent.yml run --rm agent
+
+version: '3.8'
+
+services:
+  agent:
+    build:
+      context: .
+      dockerfile: agent/Dockerfile
+    image: dcyfr/agent:local
+    container_name: dcyfr-agent-local
+    # Resource limits matching production defaults (task 1.1.4)
+    mem_limit: 2g
+    cpus: '2.0'
+    # Restrict to bridge network (no host access)
+    networks:
+      - agent-net
+    # Security hardening
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: false
+    # Workspace volume (ephemeral; bind-mount for testing)
+    volumes:
+      - agent-workspace:/workspace
+    environment:
+      # Required — override per-run
+      GITHUB_TOKEN: "${GITHUB_TOKEN:?GITHUB_TOKEN is required}"
+      AGENT_TASK_ID: "${AGENT_TASK_ID:-test-task}"
+      AGENT_TASK_DESC: "${AGENT_TASK_DESC:-Agent test run}"
+      AGENT_REPO: "${AGENT_REPO:-dcyfr/workspace}"
+      AGENT_BASE_BRANCH: "${AGENT_BASE_BRANCH:-main}"
+      AGENT_CONTRACT_ID: "${AGENT_CONTRACT_ID:-local-test}"
+      # Optional overrides
+      AGENT_SKIP_PUSH: "${AGENT_SKIP_PUSH:-0}"
+      AGENT_MAX_TIME_S: "${AGENT_MAX_TIME_S:-1800}"
+
+networks:
+  agent-net:
+    driver: bridge
+    # Outbound internet access enabled here; apply host firewall allowlist via:
+    #   scripts/apply-agent-egress-policy.sh
+    # Default policy restricts HTTPS egress to:
+    #   github.com, registry.npmjs.org, objects.githubusercontent.com
+    internal: false
+    ipam:
+      config:
+        - subnet: 172.30.0.0/16
+
+volumes:
+  agent-workspace:
+    driver: local

@@ -96,10 +96,13 @@ dcyfr-ai-docker/
 ├── configs/
 │   ├── nginx.conf             # Production Nginx configuration
 │   └── health-check.sh        # Container health check script
+│   └── network-policy/
+│       └── agent-egress-allowlist.txt # Allowed outbound endpoints for agent containers
 ├── scripts/
 │   ├── build.sh               # Build Docker images
 │   ├── run.sh                 # Run Docker stack
-│   └── deploy.sh              # Build, tag, push to registry
+│   ├── deploy.sh              # Build, tag, push to registry
+│   └── apply-agent-egress-policy.sh # Apply DOCKER-USER egress allowlist for agents
 ├── examples/
 │   ├── full-stack.yml         # Full-stack (app + DB + Redis + Nginx)
 │   ├── microservices.yml      # Multi-service architecture
@@ -201,6 +204,29 @@ Stage 3: production  → Copy deps + dist (minimal final image)
 - **Resource limits**: CPU and memory constraints per service
 - **Health checks**: HTTP endpoint monitoring at `/health`
 - **Secrets management**: Required env vars with `${VAR:?error}` syntax
+
+### Agent Egress Allowlist (Task 1.1.4)
+
+Autonomous agent containers should only reach required upstream endpoints.
+
+- Allowlist file: `configs/network-policy/agent-egress-allowlist.txt`
+- Apply policy script: `scripts/apply-agent-egress-policy.sh`
+- Default allowed hosts:
+  - `github.com`
+  - `registry.npmjs.org`
+  - `objects.githubusercontent.com`
+
+Apply the policy on the Docker host:
+
+```bash
+sudo ./scripts/apply-agent-egress-policy.sh
+```
+
+Dry-run to preview rules:
+
+```bash
+DRY_RUN=1 ./scripts/apply-agent-egress-policy.sh
+```
 
 ### Nginx Reverse Proxy
 

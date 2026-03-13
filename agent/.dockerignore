@@ -1,0 +1,15 @@
+# .dockerignore for DCYFR agent container image
+node_modules
+.git
+.gitignore
+*.log
+*.md
+dist
+build
+coverage
+.nyc_output
+.env
+.env.*
+*.test.ts
+*.spec.ts
+__tests__
